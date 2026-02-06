@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Featuring 인터뷰 일정 선택</title>
+  <style>
+    /* 기존 CSS 그대로 유지 */
+    :root { --accent: #5E51FF; --line: #5E51FF; --ink: #111; --muted: #6b7280; } 
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #f3f4f6; margin: 0; padding: 20px; box-sizing: border-box; } 
+    .card { background: white; padding: 32px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.07); width: 100%; max-width: 600px; } 
+    h1 { margin: 0 0 8px; font-size: 24px; color: var(--ink); } 
+    .subtitle { margin: 0 0 24px; font-size: 16px; color: var(--muted); } 
+    .form-group { margin-bottom: 20px; } 
+    label { font-weight: 600; display: block; margin-bottom: 8px; } 
+    .checkbox-group label { display: flex; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; margin-bottom: 10px; transition: all .15s ease; } 
+    .checkbox-group label:hover { background: #f9fafb; border-color: var(--accent); } 
+    .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; margin-right: 12px; } 
+    input[type="email"] { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; box-sizing: border-box; } 
+    button { width: 100%; padding: 14px; background: var(--accent); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background .2s ease; } 
+    button:disabled { background: #d1d5db; cursor: not-allowed; } 
+    .message { text-align: center; padding: 20px; font-size: 18px; }
+  </style>
+</head>
+<body>
+
+  <div class="card" id="form-container">
+    <h1>🗓️ Featuring 일정 선택</h1>
+    <p class="subtitle">
+      <strong id="disp-name">지원자</strong> / <span id="disp-position">포지션</span>
+    </p>
+
+    <div class="form-group">
+      <label for="email">안내 메일을 수신한 이메일 주소</label>
+      <input type="email" id="email" placeholder="본인 확인을 위해 수신한 이메일 주소를 입력해주세요">
+    </div>
+
+    <div class="form-group">
+      <label>가능한 일정을 최대 3개 선택해주세요 (중복 선택 가능)</label>
+      <div id="date-options" class="checkbox-group">
+        </div>
+      
+      <div class="checkbox-group">
+        <label for="other">
+          <input type="checkbox" id="other" name="schedule" value="기타(별도 문의)">
+          <span>기타 (제안된 일정이 불가한 경우, 해당 버튼을 제출하고 가능한 일정 2~3개 recruit@featuring.in 으로 회신 부탁 드립니다.)</span>
+        </label>
+      </div>
+    </div>
+    
+    <button id="submit-btn" onclick="submitDates()">제출하기</button>
+  </div>
+
+  <div class="card" id="success-message" style="display:none;">
+    <p class="message">✅<br><br>일정이 성공적으로 제출되었습니다.<br>검토 후 빠르게 연락드리겠습니다.</p>
+  </div>
+
+<script>
+  // ⚠️ 중요: 배포한 구글 웹앱 URL을 여기에 넣어야 합니다.
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/아이디_입력_필수/exec";
+
+  // URL 파라미터 읽기 (예: github.io/...?name=홍길동&dates=날짜1,날짜2)
+  const urlParams = new URLSearchParams(window.location.search);
+  const pName = urlParams.get('name') || '지원자';
+  const pPosition = urlParams.get('position') || '포지션';
+  const pEmail = urlParams.get('email') || '';
+  const pStage = urlParams.get('stage') || '인터뷰';
+  const pDates = urlParams.get('dates') ? urlParams.get('dates').split(',') : [];
+  const pRequestId = urlParams.get('rid') || '';
+
+  // 1. 페이지 로드 시 데이터 세팅
+  window.onload = function() {
+    document.getElementById('disp-name').textContent = pName;
+    document.getElementById('disp-position').textContent = pPosition;
+    if(pEmail) document.getElementById('email').value = pEmail;
+
+    const dateContainer = document.getElementById('date-options');
+    
+    // 날짜 옵션 동적 생성
+    pDates.forEach((date, index) => {
+      const label = document.createElement('label');
+      label.innerHTML = `
+        <input type="checkbox" id="date${index}" name="schedule" value="${date}">
+        <span>${date}</span>
+      `;
+      dateContainer.appendChild(label);
+    });
+
+    setupCheckboxListeners();
+  };
+
+  // 체크박스 로직 (기타 선택 시 해제 등)
+  function setupCheckboxListeners() {
+    const otherCb = document.getElementById('other');
+    const allCbs = document.querySelectorAll('input[name="schedule"]');
+    
+    otherCb.addEventListener('change', () => {
+      if (otherCb.checked) {
+        allCbs.forEach(cb => { if(cb !== otherCb) cb.checked = false; });
+      }
+    });
+
+    allCbs.forEach(cb => {
+      if(cb !== otherCb) {
+        cb.addEventListener('change', () => {
+          if(cb.checked) otherCb.checked = false;
+        });
+      }
+    });
+  }
+
+  // 2. 제출하기
+  function submitDates() {
+    const emailEl = document.getElementById('email');
+    if (!emailEl.value || !emailEl.value.includes('@')) {
+      alert('정확한 이메일 주소를 입력해주세요.');
+      return;
+    }
+    
+    const selectedCheckboxes = document.querySelectorAll('input[name="schedule"]:checked');
+    if (selectedCheckboxes.length === 0) {
+      alert('하나 이상의 일정을 선택해주세요.');
+      return;
+    }
+
+    const selectedDates = Array.from(selectedCheckboxes).map(cb => cb.value);
+    const OTHER_VALUE = "기타(별도 문의)";
+    const hasOther = selectedDates.includes(OTHER_VALUE);
+
+    if (!hasOther && selectedDates.length > 3) {
+      alert('가능 일정은 최대 3개까지 선택할 수 있습니다.');
+      return;
+    }
+
+    const submitBtn = document.getElementById('submit-btn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = '제출 중...';
+
+    // 전송할 데이터
+    const payload = {
+      applicantName: pName,
+      positionName: pPosition,
+      interviewStage: pStage,
+      email: emailEl.value,
+      selectedDates: selectedDates,
+      requestId: pRequestId
+    };
+
+    // fetch API로 구글 앱스 스크립트에 POST 요청
+    // mode: 'no-cors'를 쓰면 응답 내용을 읽을 수 없지만, CORS 에러를 우회하여 전송은 됩니다.
+    // 하지만 응답(성공/중복 등)을 확인하려면 구글 스크립트가 JSONP나 올바른 CORS 헤더를 줘야 합니다.
+    // 가장 간단한 방법: text/plain으로 보내고 리다이렉트를 따르는 방식입니다.
+    
+    fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.result === 'success') {
+        document.getElementById('form-container').style.display = 'none';
+        document.getElementById('success-message').style.display = 'block';
+      } else if (data.result === 'already_submitted') {
+        alert('이미 제출된 링크입니다.');
+        submitBtn.disabled = true;
+        submitBtn.textContent = '제출 완료됨';
+      } else {
+        alert('오류가 발생했습니다: ' + data.message);
+        submitBtn.disabled = false;
+        submitBtn.textContent = '제출하기';
+      }
+    })
+    .catch(error => {
+      // CORS 문제 등으로 에러가 날 수 있으나, 보통 데이터는 들어갑니다.
+      console.error('Error:', error);
+      alert('서버 통신 중 오류가 발생했으나, 데이터가 전송되었을 수 있습니다. 담당자에게 문의 바랍니다.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = '제출하기';
+    });
+  }
+</script>
+
+</body>
+</html>
